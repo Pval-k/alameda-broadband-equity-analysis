@@ -2,21 +2,17 @@ import os
 from google.cloud import bigquery
 import pandas as pd
 
-def fetch_mlab_data_alameda_2020(project_id: str, output_csv: str = 'mlab_alameda_2020.csv'):
+def fetch_mlab_data_alameda_2020(project_id: str, output_csv: str = 'mlab_raw_alameda_2020.csv'):
     """
-    Fetches M-Lab NDT data for Alameda County ZCTAs for the year 2020.
+    Fetches raw M-Lab NDT data (both downloads and uploads) for Alameda County ZCTAs for the year 2020.
     
     Requirements:
     1. A Google Cloud Project (project_id)
     2. Authentication set up (e.g., via `gcloud auth application-default login`)
-    3. Joined the `mlab-discuss` Google Group to query measurement-lab project for free.
     """
     client = bigquery.Client(project=project_id)
 
-    # Note: We use bigquery-public-data.geo_us_boundaries.zip_codes to map 
-    # M-Lab's lat/lon points to ZCTAs, filtering to zip codes in Alameda County.
-    # We join this with the measurement-lab.ndt.unified_downloads table.
-    # To avoid taking 10+ minutes and timing out, we'll fetch data month-by-month
+    # We fetch data month-by-month to provide progress updates and prevent timeouts
     months = [
         ('2020-01-01', '2020-01-31'),
         ('2020-02-01', '2020-02-29'),
@@ -37,20 +33,39 @@ def fetch_mlab_data_alameda_2020(project_id: str, output_csv: str = 'mlab_alamed
     for start_date, end_date in months:
         print(f"Fetching data for {start_date} to {end_date}...")
         
+        # We query BOTH unified_downloads and unified_uploads and combine them with UNION ALL
         query = f"""
         WITH alameda_zctas AS (
             SELECT zip_code, zip_code_geom
             FROM `bigquery-public-data.geo_us_boundaries.zip_codes`
             WHERE state_code = 'CA'
         ),
-        mlab_month AS (
+        raw_tests AS (
+            -- DOWNLOADS
             SELECT
                 date,
+                'download' AS test_type,
                 client.Geo.Latitude AS lat,
                 client.Geo.Longitude AS lon,
-                a.MeanThroughputMbps AS download_mbps,
+                a.MeanThroughputMbps AS speed_mbps,
                 a.MinRTT AS latency_ms
             FROM `measurement-lab.ndt.unified_downloads`
+            WHERE date BETWEEN '{start_date}' AND '{end_date}'
+                AND client.Geo.CountryCode = 'US'
+                AND client.Geo.Latitude BETWEEN 37.45 AND 37.90
+                AND client.Geo.Longitude BETWEEN -122.35 AND -121.45
+            
+            UNION ALL
+            
+            -- UPLOADS
+            SELECT
+                date,
+                'upload' AS test_type,
+                client.Geo.Latitude AS lat,
+                client.Geo.Longitude AS lon,
+                a.MeanThroughputMbps AS speed_mbps,
+                a.MinRTT AS latency_ms
+            FROM `measurement-lab.ndt.unified_uploads`
             WHERE date BETWEEN '{start_date}' AND '{end_date}'
                 AND client.Geo.CountryCode = 'US'
                 AND client.Geo.Latitude BETWEEN 37.45 AND 37.90
@@ -58,41 +73,31 @@ def fetch_mlab_data_alameda_2020(project_id: str, output_csv: str = 'mlab_alamed
         )
         SELECT
             z.zip_code AS zcta,
-            COUNT(*) AS test_count,
-            AVG(m.download_mbps) AS avg_download_mbps,
-            APPROX_QUANTILES(m.download_mbps, 100)[OFFSET(50)] AS median_download_mbps,
-            AVG(m.latency_ms) AS avg_latency_ms
-        FROM mlab_month m
+            r.date AS test_date,
+            r.test_type,
+            r.speed_mbps,
+            r.latency_ms
+        FROM raw_tests r
         JOIN alameda_zctas z
-        ON ST_WITHIN(ST_GEOGPOINT(m.lon, m.lat), z.zip_code_geom)
-        GROUP BY z.zip_code
+        ON ST_WITHIN(ST_GEOGPOINT(r.lon, r.lat), z.zip_code_geom)
         """
         
         query_job = client.query(query)
         df = query_job.to_dataframe()
         all_data.append(df)
-        print(f"  -> Found {len(df)} ZCTAs with data.")
+        print(f"  -> Found {len(df)} tests in Alameda ZCTAs for this month.")
 
-    # Combine all months and aggregate
+    # Combine all raw tests
     print("Combining all months together...")
     final_df = pd.concat(all_data, ignore_index=True)
     
-    # We need to do a final aggregation since ZCTAs will appear multiple times (once per month)
-    final_aggregated = final_df.groupby('zcta').apply(
-        lambda x: pd.Series({
-            'total_tests': x['test_count'].sum(),
-            'avg_download_mbps': (x['avg_download_mbps'] * x['test_count']).sum() / x['test_count'].sum(),
-            'median_download_mbps': x['median_download_mbps'].median(), # Approximation of yearly median
-            'avg_latency_ms': (x['avg_latency_ms'] * x['test_count']).sum() / x['test_count'].sum()
-        })
-    ).reset_index()
-
     # Save to CSV
-    final_aggregated.to_csv(output_csv, index=False)
-    print(f"Saved yearly aggregated results to {output_csv}")
+    final_df.to_csv(output_csv, index=False)
+    print(f"Saved {len(final_df)} raw test results to {output_csv}")
+    print("You can now use Pandas to calculate medians, standard deviations, and IQR directly from this file!")
 
 if __name__ == "__main__":
-    # TODO: Replace with your actual Google Cloud Project ID
+    # Your project ID from earlier
     YOUR_GCP_PROJECT_ID = "directed-asset-494823-t5"
     
     if YOUR_GCP_PROJECT_ID == "":

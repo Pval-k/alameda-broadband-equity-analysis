@@ -54,13 +54,13 @@ The FCC workflow is split into small scripts so each step is easy to verify.
 
 **Raw inputs (not tracked in git):** 
 - `FCC/csv/raw_CA_FCC_fixed_Dec2020.csv` — statewide FCC fixed broadband extract (Dec 2020)
-- `FCC/crosswalks/csv/raw_block_to_zcta.txt` — national Census block-to-ZCTA relationship file 
+- `FCC/crosswalk/csv/raw_block_to_zcta.txt` — national Census block-to-ZCTA relationship file 
 
-### `FCC/crosswalks/scripts/00_alameda_block_to_zcta.py`
+### `FCC/crosswalk/scripts/00_alameda_block_to_zcta.py`
 - Builds an Alameda-only block-to-ZCTA crosswalk from the national relationship file.
 - Keeps key columns only (`GEOID`, `ZCTA`, `LAND_AREA`).
 - If one `GEOID` appears with multiple `ZCTA` values, it keeps the row with the largest `LAND_AREA` and drops the rest.
-- Output: `FCC/crosswalks/csv/00_alameda_block_to_zcta_cleaned.csv`
+- Output: `FCC/crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv`
 
 ### `FCC/scripts/01_clean_fcc_blocks.py`
 - Reads raw FCC fixed broadband data for Dec 2020 (`FCC/csv/raw_CA_FCC_fixed_Dec2020.csv` by default).
@@ -77,8 +77,9 @@ The FCC workflow is split into small scripts so each step is easy to verify.
 
 ### `FCC/scripts/03_collapse_block_tech_rows.py`
 - Collapses mapped rows to one row per `zcta + BlockCode + TechCategory`.
+- Script 02 can contain duplicate keys (same block + tech repeated); this step deduplicates so medians in script 04 are not biased.
 - If duplicate rows exist within that key, it keeps the maximum `max_ad_down` and `max_ad_up` for the key.
-- This prevents repeated rows from overweighting final summaries.
+- Writes `BlockCode` and `zcta` as zero-padded text so CSV tools do not drop leading zeros.
 - Output: `FCC/csv/03_FCC_alameda_2020_block_tech_collapsed.csv`
 
 ### `FCC/scripts/04_aggregate_zcta_tech.py`

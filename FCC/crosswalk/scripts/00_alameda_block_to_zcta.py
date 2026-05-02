@@ -12,12 +12,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--input-txt",
-        default="FCC/crosswalks/csv/raw_block_to_zcta.txt",
+        default="FCC/crosswalk/csv/raw_block_to_zcta.txt",
         help="Path to the raw national block-to-ZCTA relationship .txt file.",
     )
     parser.add_argument(
         "--output-csv",
-        default="FCC/crosswalks/csv/00_alameda_block_to_zcta_cleaned.csv",
+        default="FCC/crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv",
         help="Path to output Alameda-only cleaned crosswalk CSV.",
     )
     parser.add_argument(

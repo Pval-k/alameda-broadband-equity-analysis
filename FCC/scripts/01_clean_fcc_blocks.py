@@ -23,12 +23,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--input-csv",
-        default="FCC/CA_FCC_fixed_Dec2020.csv",
+        default="FCC/csv/raw_CA_FCC_fixed_Dec2020.csv",
         help="Path to raw FCC CSV.",
     )
     parser.add_argument(
         "--output-csv",
-        default="FCC/fcc_alameda_2020_block_level.csv",
+        default="FCC/csv/01_FCC_alameda_2020_block_level.csv",
         help="Path to block-level output CSV.",
     )
     return parser

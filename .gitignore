@@ -22,5 +22,5 @@ env/
 .vscode/
 
 # Large raw inputs (download locally; do not commit)
-FCC/csv/raw_*.csv
-FCC/crosswalk/csv/raw_*.txt
+Datasets/02_FCC/csv/raw_*.csv
+Datasets/00_crosswalk/csv/raw_*.txt

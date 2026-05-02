@@ -1,0 +1,26 @@
+# Local / personal notes
+personal_README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.local
+*.pem
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Large raw inputs (download locally; do not commit)
+FCC/csv/raw_*.csv
+FCC/crosswalks/csv/raw_*.txt

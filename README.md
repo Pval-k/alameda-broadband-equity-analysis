@@ -77,7 +77,7 @@ The FCC workflow is split into small scripts so each step is easy to verify.
 
 ### `FCC/scripts/03_collapse_block_tech_rows.py`
 - Collapses mapped rows to one row per `zcta + BlockCode + TechCategory`.
-- Script 02 can contain duplicate keys (same block + tech repeated); this step deduplicates so medians in script 04 are not biased.
+- Script 02 can contain duplicate keys (same block + tech repeated). This step removes duplicates so medians in script 04 are not biased.
 - If duplicate rows exist within that key, it keeps the maximum `max_ad_down` and `max_ad_up` for the key.
 - Writes `BlockCode` and `zcta` as zero-padded text so CSV tools do not drop leading zeros.
 - Output: `FCC/csv/03_FCC_alameda_2020_block_tech_collapsed.csv`

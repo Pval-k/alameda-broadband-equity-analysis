@@ -12,12 +12,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--input-txt",
-        default="FCC/block_to_zcta_raw.txt",
+        default="FCC/crosswalks/csv/raw_block_to_zcta.txt",
         help="Path to the raw national block-to-ZCTA relationship .txt file.",
     )
     parser.add_argument(
         "--output-csv",
-        default="FCC/alameda_black_to_zcta_cleaned.csv",
+        default="FCC/crosswalks/csv/00_alameda_block_to_zcta_cleaned.csv",
         help="Path to output Alameda-only cleaned crosswalk CSV.",
     )
     parser.add_argument(
@@ -88,6 +88,7 @@ def main() -> None:
         columns={
             "GEOID_TABBLOCK_20": "GEOID",
             "GEOID_ZCTA5_20": "ZCTA",
+            "AREALAND_PART": "LAND_AREA",
         }
     ).sort_values("GEOID")
 

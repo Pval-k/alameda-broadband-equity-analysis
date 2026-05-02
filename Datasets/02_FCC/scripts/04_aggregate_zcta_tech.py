@@ -12,12 +12,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--collapsed-csv",
-        default="FCC/csv/03_FCC_alameda_2020_block_tech_collapsed.csv",
+        default="Datasets/02_FCC/csv/03_FCC_alameda_2020_block_tech_collapsed.csv",
         help="Path to collapsed intermediate CSV from script 03.",
     )
     parser.add_argument(
         "--output-csv",
-        default="FCC/csv/04_FCC_alameda_2020_zcta_tech_metrics.csv",
+        default="Datasets/02_FCC/csv/04_FCC_alameda_2020_zcta_tech_metrics.csv",
         help="Path to final zcta + tech metrics CSV.",
     )
     return parser

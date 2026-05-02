@@ -23,4 +23,4 @@ env/
 
 # Large raw inputs (download locally; do not commit)
 FCC/csv/raw_*.csv
-FCC/crosswalks/csv/raw_*.txt
+FCC/crosswalk/csv/raw_*.txt

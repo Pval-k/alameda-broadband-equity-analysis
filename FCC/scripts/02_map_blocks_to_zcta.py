@@ -15,7 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--crosswalk-csv",
-        default="FCC/crosswalks/csv/00_alameda_block_to_zcta_cleaned.csv",
+        default="FCC/crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv",
         help="Path to Alameda block-to-ZCTA cleaned CSV.",
     )
     parser.add_argument(

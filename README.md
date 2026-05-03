@@ -35,7 +35,7 @@ The goal is to understand whether meaningful digital inequities exist within a s
 
 ### 3. U.S. Census Data
 - Median household income
-- Population density (used to define urbanicity)
+- ZCTA population and population density (land area from the Alameda block-to-ZCTA crosswalk; see scripts below)
 
 ---
 
@@ -48,19 +48,40 @@ The goal is to understand whether meaningful digital inequities exist within a s
 
 ---
 
-## FCC Pipeline Scripts
+## Crosswalk scripts (Census block → ZCTA, Alameda)
 
-The FCC workflow is split into small scripts so each step is easy to verify.
+The block-to-ZCTA crosswalk is shared by the FCC pipeline (mapping blocks to ZCTAs), population density (ZCTA land area totals), and other ZCTA-level joins.
 
 **Raw inputs (not tracked in git):**
-- `Datasets/02_FCC/csv/raw_CA_FCC_fixed_Dec2020.csv` — statewide FCC fixed broadband extract (Dec 2020)
 - `Datasets/00_crosswalk/csv/raw_block_to_zcta.txt` — national Census block-to-ZCTA relationship file
 
 ### `Datasets/00_crosswalk/scripts/00_alameda_block_to_zcta.py`
 - Builds an Alameda-only block-to-ZCTA crosswalk from the national relationship file.
-- Keeps key columns only (`GEOID`, `ZCTA`, `LAND_AREA`).
+- Keeps key columns only (`GEOID`, `ZCTA`, `LAND_AREA`), where `LAND_AREA` is the land area corresponding to the block relationship row (block-part area), not full ZCTA area.
 - If one `GEOID` appears with multiple `ZCTA` values, it keeps the row with the largest `LAND_AREA` and drops the rest.
 - Output: `Datasets/00_crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv`
+
+### `Datasets/00_crosswalk/scripts/01_aggregate_zcta_land_area.py`
+- Aggregates the cleaned block-to-ZCTA crosswalk to ZCTA-level land area totals.
+- Sums `LAND_AREA` across all blocks in each ZCTA to produce `total_land_area`.
+- Output: `Datasets/00_crosswalk/csv/01_alameda_zcta_land_area.csv`
+
+**Important `LAND_AREA` note:**  
+- In script `00`, `LAND_AREA` is used as a **tie-break** (keep max) only when the same block maps to multiple ZCTAs.  
+- In script `01`, `LAND_AREA` is **summed** across blocks to get total land area per ZCTA (for density calculations).
+
+### Crosswalk run order
+1. `00_alameda_block_to_zcta.py`
+2. `01_aggregate_zcta_land_area.py`
+
+---
+
+## FCC Pipeline Scripts
+
+The FCC workflow is split into small scripts so each step is easy to verify. It expects the crosswalk outputs above (`00_alameda_block_to_zcta_cleaned.csv`) before `02_map_blocks_to_zcta.py`.
+
+**Raw inputs (not tracked in git):**
+- `Datasets/02_FCC/csv/raw_CA_FCC_fixed_Dec2020.csv` — statewide FCC fixed broadband extract (Dec 2020)
 
 ### `Datasets/02_FCC/scripts/01_clean_fcc_blocks.py`
 - Reads raw FCC fixed broadband data for Dec 2020 (`Datasets/02_FCC/csv/raw_CA_FCC_fixed_Dec2020.csv` by default).
@@ -88,10 +109,36 @@ The FCC workflow is split into small scripts so each step is easy to verify.
 - Calculates median, p75, and max for advertised download/upload speeds.
 - Output: `Datasets/02_FCC/csv/04_FCC_alameda_2020_zcta_tech_metrics.csv`
 
-### Script Run Order
-1. `00_alameda_block_to_zcta.py`
-2. `01_clean_fcc_blocks.py`
-3. `02_map_blocks_to_zcta.py`
-4. `03_collapse_block_tech_rows.py`
-5. `04_aggregate_zcta_tech.py`
+### FCC script run order
+Run the **Crosswalk** scripts first, then:
+
+1. `01_clean_fcc_blocks.py`
+2. `02_map_blocks_to_zcta.py`
+3. `03_collapse_block_tech_rows.py`
+4. `04_aggregate_zcta_tech.py`
+
+---
+
+## Census population density (ZCTA)
+
+These steps build Alameda-only ZCTA population and density using Census population counts and ZCTA land area from the **Crosswalk** section (`01_alameda_zcta_land_area.csv`).
+
+**Raw inputs (not tracked in git):**
+- `Datasets/03_CENSUS/population_density/csv/raw_ZCTA_population.csv` — Census-style ZCTA population export (`GEO_ID`, `NAME`, `P1_001N` total population).
+
+### `Datasets/03_CENSUS/population_density/scripts/01_alameda_zcta_population.py`
+- Reads the raw ZCTA population CSV (skips the duplicate label row used in Census API downloads).
+- Keeps rows that are ZCTA geographies (`GEO_ID` prefix `860Z200US`) and restricts to ZCTAs listed in `Datasets/00_crosswalk/csv/01_alameda_zcta_land_area.csv`.
+- Output: `Datasets/03_CENSUS/population_density/csv/01_alameda_zcta_population.csv` — columns `zcta`, `population`.
+
+### `Datasets/03_CENSUS/population_density/scripts/02_alameda_zcta_population_density.py`
+- Joins `01_alameda_zcta_population.csv` to `01_alameda_zcta_land_area.csv` on ZCTA.
+- Land area is taken from `total_land_area` (square meters; same units as Census `AREALAND_PART` in the block-to-ZCTA relationship file).
+- Computes `population_per_sq_km` and `population_per_sq_mi`; leaves density blank if land area is zero or missing.
+- Output: `Datasets/03_CENSUS/population_density/csv/02_alameda_zcta_population_density.csv`
+
+### Population density script order
+1. Complete **Crosswalk run order** so `01_alameda_zcta_land_area.csv` exists.
+2. `01_alameda_zcta_population.py`
+3. `02_alameda_zcta_population_density.py`
 

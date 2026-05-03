@@ -1,5 +1,5 @@
-# Local / personal notes
-personal_README.md
+# Local / personal notes (ignore in repo root or subfolders)
+**/personal_README.md
 
 # Python
 __pycache__/
@@ -24,3 +24,4 @@ env/
 # Large raw inputs (download locally; do not commit)
 Datasets/02_FCC/csv/raw_*.csv
 Datasets/00_crosswalk/csv/raw_*.txt
+Datasets/03_CENSUS/population_density/csv/raw_*.csv

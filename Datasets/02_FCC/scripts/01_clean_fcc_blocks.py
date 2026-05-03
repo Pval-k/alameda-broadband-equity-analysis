@@ -31,6 +31,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="Datasets/02_FCC/csv/01_FCC_alameda_2020_block_level.csv",
         help="Path to block-level output CSV.",
     )
+    parser.add_argument(
+        "--bridge-csv",
+        default="Datasets/02_FCC/csv/00_alameda_2010_to_2020_bridge.csv",
+        help=(
+            "Optional 2010→2020 block bridge CSV (geoid_2010, geoid_2020). "
+            "If this file exists, FCC BlockCode values are replaced with geoid_2020 "
+            "before aggregation."
+        ),
+    )
     return parser
 
 
@@ -69,6 +78,33 @@ def main() -> None:
 
     # Keep required fields only.
     df = df[["BlockCode", "TechCode", "MaxAdDown", "MaxAdUp"]].copy()
+
+    bridge_path = Path(args.bridge_csv)
+    if bridge_path.exists():
+        bridge = pd.read_csv(
+            bridge_path,
+            dtype={"geoid_2010": "string", "geoid_2020": "string"},
+            usecols=["geoid_2010", "geoid_2020"],
+        )
+        bridge["geoid_2010"] = bridge["geoid_2010"].str.strip().str.zfill(15)
+        bridge["geoid_2020"] = bridge["geoid_2020"].str.strip().str.zfill(15)
+        n_rows = len(df)
+        n_blk = df["BlockCode"].nunique()
+        df = df.merge(
+            bridge,
+            left_on="BlockCode",
+            right_on="geoid_2010",
+            how="left",
+        )
+        hit = df["geoid_2020"].notna()
+        df.loc[hit, "BlockCode"] = df.loc[hit, "geoid_2020"]
+        df = df.drop(columns=["geoid_2010", "geoid_2020"])
+        print(
+            f"Bridge 2010→2020: {hit.sum()}/{n_rows} rows matched "
+            f"({hit.mean():.1%}); {n_blk} → {df['BlockCode'].nunique()} unique BlockCodes."
+        )
+    else:
+        print(f"Warning: no bridge at {bridge_path}; BlockCode left as in FCC file.")
 
     # Clean numeric fields.
     # Coerce to numeric Mbps and drop null/negative values.

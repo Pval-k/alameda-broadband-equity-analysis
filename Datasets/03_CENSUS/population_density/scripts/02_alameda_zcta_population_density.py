@@ -1,4 +1,15 @@
-"""Join Alameda ZCTA population to crosswalk land area and compute population density."""
+"""Join Alameda ZCTA population to crosswalk land area and compute population density.
+
+Land area from the crosswalk is square meters (Census AREALAND_PART).
+
+Density in people per square mile (common U.S. reporting unit):
+
+    land_area_sq_mi = land_area_sq_m / SQ_M_PER_SQ_MI
+    population_per_sq_mi = population / land_area_sq_mi
+
+where SQ_M_PER_SQ_MI is the exact conversion (1 international mile = 1609.344 m,
+so 1 mi^2 = (1609.344)^2 m^2).
+"""
 
 import argparse
 from pathlib import Path
@@ -7,6 +18,7 @@ import pandas as pd
 
 # Crosswalk LAND_AREA / total_land_area comes from Census block–ZCTA AREALAND_PART (square meters).
 SQ_M_PER_SQ_KM = 1_000_000.0
+# 1 square mile = exactly 2,589,988.110336 square meters (international mile definition).
 SQ_M_PER_SQ_MI = 2589988.110336
 
 
@@ -66,14 +78,16 @@ def main() -> None:
     area = merged["land_area_sq_m"]
     pop_n = pd.to_numeric(merged["population"], errors="coerce")
     with_area = area.gt(0) & area.notna()
+    merged["land_area_sq_mi"] = (area / SQ_M_PER_SQ_MI).where(with_area)
     merged["population_per_sq_km"] = (pop_n / (area / SQ_M_PER_SQ_KM)).where(with_area)
-    merged["population_per_sq_mi"] = (pop_n / (area / SQ_M_PER_SQ_MI)).where(with_area)
+    merged["population_per_sq_mi"] = (pop_n / merged["land_area_sq_mi"]).where(with_area)
 
     out = merged[
         [
             "zcta",
             "population",
             "land_area_sq_m",
+            "land_area_sq_mi",
             "population_per_sq_km",
             "population_per_sq_mi",
         ]

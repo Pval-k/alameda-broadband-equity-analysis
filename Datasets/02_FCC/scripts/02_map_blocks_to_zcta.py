@@ -104,8 +104,13 @@ def main() -> None:
 
     # QA checks: unmatched blocks and duplicate keys.
     unmatched = mapped["zcta"].isna().sum()
+    n_in = len(mapped)
     if unmatched > 0:
-        print(f"Warning: {unmatched} block rows did not map to a ZCTA.")
+        pct = 100.0 * unmatched / n_in
+        print(
+            f"Warning: {unmatched} of {n_in} block rows ({pct:.1f}%) did not map to a ZCTA. "
+            "Confirm FCC BlockCode values match the block GEOIDs in the crosswalk file."
+        )
 
     mapped = mapped.dropna(subset=["zcta"])
     mapped = mapped[

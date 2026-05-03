@@ -1,7 +1,19 @@
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+
+
+def _cv(series: pd.Series) -> float:
+    """Coefficient of variation (sample std / mean); NaN if undefined."""
+    s = pd.to_numeric(series, errors="coerce").dropna()
+    if len(s) < 2:
+        return np.nan
+    m = s.mean()
+    if m == 0 or np.isnan(m):
+        return np.nan
+    return float(s.std(ddof=1) / m)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,7 +54,8 @@ def main() -> None:
     df = df[df["zcta"].str.match(r"^\d{5}$", na=False)]
 
     # Final level:
-    # one row per zcta + TechCategory with median/p75 summaries of block-level maxima.
+    # one row per zcta + TechCategory with median/p75/max/CV of block-level maxima.
+    # CV (std/mean) highlights within-ZCTA inequality when medians look similar.
     final_df = (
         df.groupby(["zcta", "TechCategory"], as_index=False)
         .agg(
@@ -53,6 +66,8 @@ def main() -> None:
             p75_advertised_upload_mbps=("max_ad_up", lambda x: x.quantile(0.75)),
             max_advertised_download_mbps=("max_ad_down", "max"),
             max_advertised_upload_mbps=("max_ad_up", "max"),
+            cv_advertised_download_mbps=("max_ad_down", _cv),
+            cv_advertised_upload_mbps=("max_ad_up", _cv),
         )
         .sort_values(["zcta", "TechCategory"])
         .reset_index(drop=True)

@@ -73,7 +73,9 @@ def main() -> None:
     alameda_df = pd.concat(filtered_chunks, ignore_index=True)
 
     # Tie-breaker: if a block maps to multiple ZCTAs, keep the one with largest AREALAND_PART.
-    # This keeps the ZCTA row with the largest AREALAND_PART for that block.
+    # Here, AREALAND_PART (renamed to LAND_AREA) is the land-area amount corresponding
+    # to that block's relationship row, not the total area of the whole ZCTA.
+    # This keeps the ZCTA row with the largest block-part land area for that block.
     alameda_df = alameda_df.sort_values(
         ["GEOID_TABBLOCK_20", "AREALAND_PART"],
         ascending=[True, False],

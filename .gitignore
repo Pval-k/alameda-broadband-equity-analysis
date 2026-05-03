@@ -10,6 +10,10 @@ __pycache__/
 .venv/
 venv/
 env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Environment / secrets
 .env
@@ -18,10 +22,10 @@ env/
 
 # OS / editor
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 
 # Large raw inputs (download locally; do not commit)
-Datasets/02_FCC/csv/raw_*.csv
-Datasets/00_crosswalk/csv/raw_*.txt
-Datasets/03_CENSUS/population_density/csv/raw_*.csv
+Datasets/**/raw_*.csv
+Datasets/**/raw_*.txt

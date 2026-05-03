@@ -82,9 +82,18 @@ The FCC workflow is split into small scripts so each step is easy to verify. It 
 
 **Raw inputs (not tracked in git):**
 - `Datasets/02_FCC/csv/raw_CA_FCC_fixed_Dec2020.csv` — statewide FCC fixed broadband extract (Dec 2020)
+- `Datasets/02_FCC/csv/raw_translate_fcc_2010_to_2020.txt` (or similar name) — California Census 2010→2020 tabulation block relationship file (pipe-delimited), used to build `00_alameda_2010_to_2020_bridge.csv`.
+
+### `Datasets/02_FCC/scripts/00_alameda_2010_to_2020_bridge.py`
+- Filters the California block relationship file to Alameda County (`STATE_2010` 06, `COUNTY_2010` 001), builds 15-digit `geoid_2010` and `geoid_2020`, and keeps one row per 2010 block by sorting `AREALAND_INT` descending (largest intersecting land area wins when a 2010 block splits into several 2020 blocks).
+- Output: `Datasets/02_FCC/csv/00_alameda_2010_to_2020_bridge.csv` (`geoid_2010`, `geoid_2020`, `AREALAND_INT`).
 
 ### `Datasets/02_FCC/scripts/01_clean_fcc_blocks.py`
+
+**Why we added `00_alameda_2010_to_2020_bridge.csv`:** The Dec 2020 FCC data still labels blocks with **2010** Census block IDs. Our crosswalk and Census layers use **2020** block IDs. Those IDs do not always match line by line, so linking FCC straight to the crosswalk dropped a large share of rows. This CSV lists each Alameda 2010 block next to its matching 2020 block (from Census’s relationship file), so FCC rows can be rewritten to the same block IDs the crosswalk uses.
+
 - Reads raw FCC fixed broadband data for Dec 2020 (`Datasets/02_FCC/csv/raw_CA_FCC_fixed_Dec2020.csv` by default).
+- If `00_alameda_2010_to_2020_bridge.csv` is present, each FCC `BlockCode` is looked up as a 2010 block and replaced with the matching 2020 block ID from that CSV. Rows that have no match keep the original `BlockCode`.
 - Filters to Alameda County blocks (`BlockCode` starts with `06001`) and residential records.
 - Maps `TechCode` to readable `TechCategory`.
 - Produces one row per `BlockCode + TechCategory` by keeping the maximum advertised download/upload (`max_ad_down`, `max_ad_up`) within that group.
@@ -105,17 +114,18 @@ The FCC workflow is split into small scripts so each step is easy to verify. It 
 
 ### `Datasets/02_FCC/scripts/04_aggregate_zcta_tech.py`
 - Aggregates collapsed rows to final `zcta + TechCategory` metrics.
-- For each `zcta + TechCategory`, it summarizes the distribution of block-level max speeds (median, p75, and max) instead of keeping only a single block.
-- Calculates median, p75, and max for advertised download/upload speeds.
+- For each `zcta + TechCategory`, it summarizes the distribution of block-level max speeds (median, p75, max, and **coefficient of variation** = sample standard deviation / mean) for advertised download/upload speeds.
+- CV is undefined for a single block or when the mean is zero; use it to spot uneven speeds within a ZCTA when medians look similar.
 - Output: `Datasets/02_FCC/csv/04_FCC_alameda_2020_zcta_tech_metrics.csv`
 
 ### FCC script run order
 Run the **Crosswalk** scripts first, then:
 
-1. `01_clean_fcc_blocks.py`
-2. `02_map_blocks_to_zcta.py`
-3. `03_collapse_block_tech_rows.py`
-4. `04_aggregate_zcta_tech.py`
+1. `00_alameda_2010_to_2020_bridge.py` (whenever the Census relationship file is updated)
+2. `01_clean_fcc_blocks.py`
+3. `02_map_blocks_to_zcta.py`
+4. `03_collapse_block_tech_rows.py`
+5. `04_aggregate_zcta_tech.py`
 
 ---
 
@@ -133,8 +143,8 @@ These steps build Alameda-only ZCTA population and density using Census populati
 
 ### `Datasets/03_CENSUS/population_density/scripts/02_alameda_zcta_population_density.py`
 - Joins `01_alameda_zcta_population.csv` to `01_alameda_zcta_land_area.csv` on ZCTA.
-- Land area is taken from `total_land_area` (square meters; same units as Census `AREALAND_PART` in the block-to-ZCTA relationship file).
-- Computes `population_per_sq_km` and `population_per_sq_mi`; leaves density blank if land area is zero or missing.
+- Land area is taken from `total_land_area` in **square meters** (Census `AREALAND_PART`). The script converts to square miles with the standard factor **1 mi² = 2,589,988.110336 m²** (international mile) and writes `land_area_sq_mi` plus `population_per_sq_mi` (people per square mile, the usual U.S. convention) and `population_per_sq_km`.
+- Leaves density blank if land area is zero or missing.
 - Output: `Datasets/03_CENSUS/population_density/csv/02_alameda_zcta_population_density.csv`
 
 ### Population density script order

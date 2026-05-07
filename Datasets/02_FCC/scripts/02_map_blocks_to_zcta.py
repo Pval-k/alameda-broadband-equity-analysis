@@ -10,17 +10,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--block-csv",
-        default="FCC/csv/01_FCC_alameda_2020_block_level.csv",
+        default="Datasets/02_FCC/csv/01_FCC_alameda_2020_block_level.csv",
         help="Path to block-level FCC CSV from script 01.",
     )
     parser.add_argument(
         "--crosswalk-csv",
-        default="FCC/crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv",
+        default="Datasets/00_crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv",
         help="Path to Alameda block-to-ZCTA cleaned CSV.",
     )
     parser.add_argument(
         "--output-csv",
-        default="FCC/csv/02_FCC_alameda_2020_block_zcta_mapped.csv",
+        default="Datasets/02_FCC/csv/02_FCC_alameda_2020_block_zcta_mapped.csv",
         help="Path to mapped block->ZCTA output CSV.",
     )
     return parser
@@ -104,8 +104,13 @@ def main() -> None:
 
     # QA checks: unmatched blocks and duplicate keys.
     unmatched = mapped["zcta"].isna().sum()
+    n_in = len(mapped)
     if unmatched > 0:
-        print(f"Warning: {unmatched} block rows did not map to a ZCTA.")
+        pct = 100.0 * unmatched / n_in
+        print(
+            f"Warning: {unmatched} of {n_in} block rows ({pct:.1f}%) did not map to a ZCTA. "
+            "Confirm FCC BlockCode values match the block GEOIDs in the crosswalk file."
+        )
 
     mapped = mapped.dropna(subset=["zcta"])
     mapped = mapped[

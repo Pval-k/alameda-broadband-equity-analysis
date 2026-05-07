@@ -1,5 +1,5 @@
-# Local / personal notes
-personal_README.md
+# Local / personal notes (ignore in repo root or subfolders)
+**/personal_README.md
 
 # Python
 __pycache__/
@@ -10,6 +10,10 @@ __pycache__/
 .venv/
 venv/
 env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Environment / secrets
 .env
@@ -18,9 +22,10 @@ env/
 
 # OS / editor
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 
 # Large raw inputs (download locally; do not commit)
-FCC/csv/raw_*.csv
-FCC/crosswalk/csv/raw_*.txt
+Datasets/**/raw_*.csv
+Datasets/**/raw_*.txt

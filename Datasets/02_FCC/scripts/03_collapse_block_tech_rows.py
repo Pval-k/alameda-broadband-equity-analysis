@@ -48,12 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mapped-csv",
-        default="FCC/csv/02_FCC_alameda_2020_block_zcta_mapped.csv",
+        default="Datasets/02_FCC/csv/02_FCC_alameda_2020_block_zcta_mapped.csv",
         help="Path to mapped block->ZCTA CSV from script 02.",
     )
     parser.add_argument(
         "--output-csv",
-        default="FCC/csv/03_FCC_alameda_2020_block_tech_collapsed.csv",
+        default="Datasets/02_FCC/csv/03_FCC_alameda_2020_block_tech_collapsed.csv",
         help="Path to collapsed intermediate CSV.",
     )
     return parser

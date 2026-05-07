@@ -12,12 +12,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--input-txt",
-        default="FCC/crosswalk/csv/raw_block_to_zcta.txt",
+        default="Datasets/00_crosswalk/csv/raw_block_to_zcta.txt",
         help="Path to the raw national block-to-ZCTA relationship .txt file.",
     )
     parser.add_argument(
         "--output-csv",
-        default="FCC/crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv",
+        default="Datasets/00_crosswalk/csv/00_alameda_block_to_zcta_cleaned.csv",
         help="Path to output Alameda-only cleaned crosswalk CSV.",
     )
     parser.add_argument(
@@ -73,7 +73,9 @@ def main() -> None:
     alameda_df = pd.concat(filtered_chunks, ignore_index=True)
 
     # Tie-breaker: if a block maps to multiple ZCTAs, keep the one with largest AREALAND_PART.
-    # This keeps the ZCTA row with the largest AREALAND_PART for that block.
+    # Here, AREALAND_PART (renamed to LAND_AREA) is the land-area amount corresponding
+    # to that block's relationship row, not the total area of the whole ZCTA.
+    # This keeps the ZCTA row with the largest block-part land area for that block.
     alameda_df = alameda_df.sort_values(
         ["GEOID_TABBLOCK_20", "AREALAND_PART"],
         ascending=[True, False],

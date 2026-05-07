@@ -29,3 +29,4 @@ Thumbs.db
 # Large raw inputs (download locally; do not commit)
 Datasets/**/raw_*.csv
 Datasets/**/raw_*.txt
+mlab_raw_alameda_2020.csv

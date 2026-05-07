@@ -152,3 +152,18 @@ These steps build Alameda-only ZCTA population and density using Census populati
 2. `01_alameda_zcta_population.py`
 3. `02_alameda_zcta_population_density.py`
 
+---
+
+## Census income (ZCTA, ACS 5-year)
+
+Median household income is pulled from the Census **ACS 5-year** API (table `B19013`).
+
+- **Estimate**: `B19013_001E`
+- **Margin of error**: `B19013_001M`
+
+### `Datasets/03_CENSUS/income/scripts/00_alameda_zcta_income_acs5.py`
+- Downloads income for **all ZCTAs** for a given ACS end year (default **2020**, i.e. 2016–2020 ACS5).
+- Filters to Alameda County ZCTAs using `Datasets/00_crosswalk/csv/01_alameda_zcta_land_area.csv` (column `ZCTA`).
+- Output: `Datasets/03_CENSUS/income/csv/01_alameda_zcta_income.csv`
+
+

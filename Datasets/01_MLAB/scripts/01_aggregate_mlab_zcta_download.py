@@ -35,6 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=2020,
         help="Year label to store in output (e.g. 2020).",
     )
+    p.add_argument(
+        "--alameda-zcta-csv",
+        default="Datasets/00_crosswalk/csv/01_alameda_zcta_land_area.csv",
+        help="Alameda ZCTA allowlist (uses column ZCTA). If provided, M-Lab rows are filtered to these ZCTAs.",
+    )
     return p
 
 
@@ -60,6 +65,15 @@ def main() -> None:
     df["zcta"] = df["zcta"].astype(str).str.strip().str.zfill(5)
     df["speed_mbps"] = pd.to_numeric(df["speed_mbps"], errors="coerce")
     df["latency_ms"] = pd.to_numeric(df["latency_ms"], errors="coerce")
+
+    # Filter to Alameda ZCTAs so downstream joins don't drop unrelated Bay Area ZCTAs.
+    allow_path = Path(args.alameda_zcta_csv)
+    if allow_path.exists():
+        allow = pd.read_csv(allow_path, dtype={"ZCTA": str})
+        allowed = set(allow["ZCTA"].dropna().astype(str).str.strip().str.zfill(5))
+        df = df[df["zcta"].isin(allowed)].copy()
+    else:
+        print(f"Warning: Alameda ZCTA allowlist not found at {allow_path}; not filtering.")
 
     # Negative speeds are not valid; treat them as missing.
     df.loc[df["speed_mbps"] < 0, "speed_mbps"] = pd.NA

@@ -1,0 +1,2 @@
+n,x_col,y_col,spearman_rho,p_value
+47,median_household_income,median_download_mbps,0.109736355226642,0.46277907120122874

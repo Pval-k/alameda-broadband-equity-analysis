@@ -74,6 +74,13 @@ The block-to-ZCTA crosswalk is shared by the FCC pipeline (mapping blocks to ZCT
 1. `00_alameda_block_to_zcta.py`
 2. `01_aggregate_zcta_land_area.py`
 
+**How to run** (from repo root; requires `Datasets/00_crosswalk/csv/raw_block_to_zcta.txt`):
+
+```bash
+python "Datasets/00_crosswalk/scripts/00_alameda_block_to_zcta.py"
+python "Datasets/00_crosswalk/scripts/01_aggregate_zcta_land_area.py"
+```
+
 ---
 
 ## FCC Pipeline Scripts
@@ -127,6 +134,16 @@ Run the **Crosswalk** scripts first, then:
 4. `03_collapse_block_tech_rows.py`
 5. `04_aggregate_zcta_tech.py`
 
+**How to run** (from repo root; raw FCC and bridge inputs must be present where each script expects them):
+
+```bash
+python "Datasets/02_FCC/scripts/00_alameda_2010_to_2020_bridge.py"
+python "Datasets/02_FCC/scripts/01_clean_fcc_blocks.py"
+python "Datasets/02_FCC/scripts/02_map_blocks_to_zcta.py"
+python "Datasets/02_FCC/scripts/03_collapse_block_tech_rows.py"
+python "Datasets/02_FCC/scripts/04_aggregate_zcta_tech.py"
+```
+
 ---
 
 ## Census population density (ZCTA)
@@ -152,6 +169,13 @@ These steps build Alameda-only ZCTA population and density using Census populati
 2. `01_alameda_zcta_population.py`
 3. `02_alameda_zcta_population_density.py`
 
+**How to run** (from repo root; requires `raw_ZCTA_population.csv` per script defaults):
+
+```bash
+python "Datasets/03_CENSUS/population_density/scripts/01_alameda_zcta_population.py"
+python "Datasets/03_CENSUS/population_density/scripts/02_alameda_zcta_population_density.py"
+```
+
 ---
 
 ## Census income (ZCTA, ACS 5-year)
@@ -166,4 +190,107 @@ Median household income is pulled from the Census **ACS 5-year** API (table `B19
 - Filters to Alameda County ZCTAs using `Datasets/00_crosswalk/csv/01_alameda_zcta_land_area.csv` (column `ZCTA`).
 - Output: `Datasets/03_CENSUS/income/csv/01_alameda_zcta_income.csv`
 
+**How to run** (from the repository root):
+
+```bash
+python "Datasets/03_CENSUS/income/scripts/00_alameda_zcta_income_acs5.py"
+```
+
+Optional: `--acs-end-year 2020`, `--census-api-key YOUR_KEY`, `--output-csv ...`. Missing Census estimates are written as blank cells (not negative sentinels).
+
+---
+
+## M-Lab pipeline (measured speeds → ZCTA → stats, income join, Spearman)
+
+Run these from the **repository root**. The crosswalk file `Datasets/00_crosswalk/csv/01_alameda_zcta_land_area.csv` must exist first; aggregation and raw filtering use it so only **Alameda ZCTAs** are kept.
+
+### `Datasets/01_MLAB/fetch_mlab_data.py`
+- Fetches raw NDT download and upload tests from BigQuery for a bounding box over Alameda County, **month by month** for 2020.
+- **How to run**: set `YOUR_GCP_PROJECT_ID` in the script, authenticate (`gcloud auth application-default login`), then `python "Datasets/01_MLAB/fetch_mlab_data.py"`.
+- **Output**: `mlab_raw_alameda_2020.csv` in the current working directory by default (large file; often not committed).
+
+### `Datasets/01_MLAB/filter_mlab_month.py`
+- Streams the full-year raw CSV and keeps rows whose `test_date` falls in a chosen calendar month (default **December 2020**).
+- **How to run**:
+
+```bash
+python "Datasets/01_MLAB/filter_mlab_month.py" \
+  --input-csv "Datasets/01_MLAB/mlab_raw_alameda_2020.csv" \
+  --output-csv "Datasets/01_MLAB/mlab_raw_alameda_2020_12.csv"
+```
+
+- **Output**: `Datasets/01_MLAB/mlab_raw_alameda_2020_12.csv` — raw tests for that month only (`zcta`, `test_date`, `test_type`, `speed_mbps`, `latency_ms`).
+
+### `Datasets/01_MLAB/scripts/05_filter_raw_december_to_alameda_zctas.py`
+- Restricts the December raw file to ZCTAs listed in the Alameda crosswalk (overwrites the input path by default).
+- **How to run**:
+
+```bash
+python "Datasets/01_MLAB/scripts/05_filter_raw_december_to_alameda_zctas.py"
+```
+
+- **Output**: same path as `--input-csv` (default `mlab_raw_alameda_2020_12.csv`), now Alameda-only rows only.
+
+### `Datasets/01_MLAB/scripts/01_aggregate_mlab_zcta_download.py`
+- Aggregates **download** tests to one row per `zcta`: median/mean/std download Mbps, test count, median/mean download latency; labels `mlab_year`, `mlab_month`. Filters to Alameda ZCTAs via `--alameda-zcta-csv` (default crosswalk).
+- **How to run**:
+
+```bash
+python "Datasets/01_MLAB/scripts/01_aggregate_mlab_zcta_download.py" \
+  --input-csv "Datasets/01_MLAB/mlab_raw_alameda_2020_12.csv" \
+  --output-csv "Datasets/01_MLAB/csvs/01_alameda_zcta_mlab_2020_12_download_metrics.csv"
+```
+
+- **Output**: `Datasets/01_MLAB/csvs/01_alameda_zcta_mlab_2020_12_download_metrics.csv`.
+
+### `Datasets/01_MLAB/scripts/06_aggregate_mlab_zcta_upload.py`
+- Same pattern for **upload** tests (median/mean/std upload Mbps, test count, upload latency summaries).
+- **How to run**: `python "Datasets/01_MLAB/scripts/06_aggregate_mlab_zcta_upload.py"`.
+- **Output**: `Datasets/01_MLAB/csvs/06_alameda_zcta_mlab_2020_12_upload_metrics.csv`.
+
+### `Datasets/01_MLAB/scripts/02_descriptive_stats_download_mbps_by_zcta.py`
+- Summarizes the **distribution of ZCTA-level** `median_download_mbps` (mean, median, std, quartiles, IQR, min/max) and writes an empirical CDF table + plot.
+- **How to run**:
+
+```bash
+python "Datasets/01_MLAB/scripts/02_descriptive_stats_download_mbps_by_zcta.py" \
+  --input-csv "Datasets/01_MLAB/csvs/01_alameda_zcta_mlab_2020_12_download_metrics.csv"
+```
+
+- **Outputs**:
+  - `Datasets/01_MLAB/csvs/02_alameda_zcta_mlab_2020_12_download_descriptive_summary.csv` — one row of summary statistics.
+  - `Datasets/01_MLAB/csvs/02_alameda_zcta_mlab_2020_12_download_ecdf.csv` — ECDF points.
+  - `Datasets/01_MLAB/plots/02_alameda_zcta_mlab_2020_12_download_cdf.png` — CDF figure.
+
+### `Datasets/01_MLAB/scripts/03_join_mlab_with_income.py`
+- Inner-joins ZCTA download metrics to `01_alameda_zcta_income.csv` on `zcta`; drops rows with missing `median_household_income`.
+- **How to run**: `python "Datasets/01_MLAB/scripts/03_join_mlab_with_income.py"`.
+- **Output**: `Datasets/01_MLAB/csvs/03_alameda_zcta_mlab_2020_12_with_income.csv` — merged table for correlation and plots.
+
+### `Datasets/01_MLAB/scripts/04_spearman_income_vs_speed.py`
+- **Spearman** correlation between `median_household_income` and `median_download_mbps` on the merged file; scatter plot with a linear trend line (visual only).
+- **How to run**: `python "Datasets/01_MLAB/scripts/04_spearman_income_vs_speed.py"`. Add `--log-x` for log-scaled income on the plot.
+- **Outputs**:
+  - `Datasets/01_MLAB/csvs/04_spearman_income_vs_download_results.csv` — `n`, `spearman_rho`, `p_value`.
+  - `Datasets/01_MLAB/plots/04_income_vs_median_download_scatter.png`.
+
+### `Datasets/01_MLAB/scripts/07_spearman_income_metric_suite.py`
+- Runs Spearman for income vs several ZCTA metrics at once (median/mean download and upload, download/upload latency). Requires download + upload metric CSVs.
+- **How to run**: `python "Datasets/01_MLAB/scripts/07_spearman_income_metric_suite.py"`.
+- **Output**: `Datasets/01_MLAB/csvs/07_spearman_income_metric_suite.csv` — one row per metric.
+
+### `Datasets/01_MLAB/scripts/00_audit_zcta_joins.py`
+- Prints coverage diagnostics: ZCTAs in M-Lab vs income vs crosswalk allowlist, and missing-income ZCTAs. Does not write files.
+- **How to run**: `python "Datasets/01_MLAB/scripts/00_audit_zcta_joins.py"`.
+
+### Suggested M-Lab order (December slice, Alameda-only)
+1. (Optional) `fetch_mlab_data.py` → full-year raw.
+2. `filter_mlab_month.py` → December raw.
+3. `05_filter_raw_december_to_alameda_zctas.py` → Alameda-only December raw.
+4. `01_aggregate_mlab_zcta_download.py` → ZCTA download metrics.
+5. (Optional) `06_aggregate_mlab_zcta_upload.py` → ZCTA upload metrics.
+6. `02_descriptive_stats_download_mbps_by_zcta.py` → summary + ECDF + plot.
+7. `03_join_mlab_with_income.py` → merged CSV.
+8. `04_spearman_income_vs_speed.py` and/or `07_spearman_income_metric_suite.py`.
+9. `00_audit_zcta_joins.py` anytime to verify ZCTA alignment.
 

@@ -74,13 +74,6 @@ The block-to-ZCTA crosswalk is shared by the FCC pipeline (mapping blocks to ZCT
 1. `00_alameda_block_to_zcta.py`
 2. `01_aggregate_zcta_land_area.py`
 
-**How to run** (from repo root; requires `Datasets/00_crosswalk/csv/raw_block_to_zcta.txt`):
-
-```bash
-python "Datasets/00_crosswalk/scripts/00_alameda_block_to_zcta.py"
-python "Datasets/00_crosswalk/scripts/01_aggregate_zcta_land_area.py"
-```
-
 ---
 
 ## FCC Pipeline Scripts
@@ -125,6 +118,14 @@ The FCC workflow is split into small scripts so each step is easy to verify. It 
 - CV is undefined for a single block or when the mean is zero; use it to spot uneven speeds within a ZCTA when medians look similar.
 - Output: `Datasets/02_FCC/csv/04_FCC_alameda_2020_zcta_tech_metrics.csv`
 
+### `Datasets/02_FCC/scripts/05_alameda_zcta_advertised_download.py`
+- Derives **one advertised download speed per ZCTA** from `03_FCC_alameda_2020_block_tech_collapsed.csv` using **Option A** (the standard "best buyable, typical block" approach):
+  1. **Per block**: take the **max** of `max_ad_down` across `TechCategory` (the best tech available at that block — if a block has both DSL and Fiber, Fiber wins).
+  2. **Per ZCTA**: take the **median** of those per-block bests across blocks in the ZCTA (the typical block's ceiling).
+- **Why median, not mean**: one fiber-heavy street can pull a mean up to a number nobody else in the ZCTA actually receives; the median reflects what the typical block can really purchase.
+- Also writes `mean_block_best_ad_down`, `p25_block_best_ad_down`, `p75_block_best_ad_down`, and `block_count` for context.
+- Output: `Datasets/02_FCC/csv/05_alameda_zcta_advertised_download.csv` — `zcta`, `advertised_download_mbps`, plus the context columns.
+
 ### FCC script run order
 Run the **Crosswalk** scripts first, then:
 
@@ -133,16 +134,7 @@ Run the **Crosswalk** scripts first, then:
 3. `02_map_blocks_to_zcta.py`
 4. `03_collapse_block_tech_rows.py`
 5. `04_aggregate_zcta_tech.py`
-
-**How to run** (from repo root; raw FCC and bridge inputs must be present where each script expects them):
-
-```bash
-python "Datasets/02_FCC/scripts/00_alameda_2010_to_2020_bridge.py"
-python "Datasets/02_FCC/scripts/01_clean_fcc_blocks.py"
-python "Datasets/02_FCC/scripts/02_map_blocks_to_zcta.py"
-python "Datasets/02_FCC/scripts/03_collapse_block_tech_rows.py"
-python "Datasets/02_FCC/scripts/04_aggregate_zcta_tech.py"
-```
+6. `05_alameda_zcta_advertised_download.py`
 
 ---
 
@@ -164,17 +156,22 @@ These steps build Alameda-only ZCTA population and density using Census populati
 - Leaves density blank if land area is zero or missing.
 - Output: `Datasets/03_CENSUS/population_density/csv/02_alameda_zcta_population_density.csv`
 
+### `Datasets/03_CENSUS/population_density/scripts/03_alameda_zcta_density_groups.py`
+- Reads `02_alameda_zcta_population_density.csv` and assigns each ZCTA to a **`low`**, **`medium`**, or **`high`** density group using **tertile cutoffs** on `population_per_sq_mi` via `pandas.qcut(df["population_per_sq_mi"], q=3, labels=["low","medium","high"])`.
+- **How the labels were created**:
+  - Compute the 33.33rd percentile (`q33`) and 66.67th percentile (`q67`) of `population_per_sq_mi` across the 53 Alameda ZCTAs.
+  - `low`: `population_per_sq_mi <= q33` (most rural ZCTAs, e.g. 94550, 94586).
+  - `medium`: `q33 < population_per_sq_mi <= q67` (suburban / mid-density).
+  - `high`: `population_per_sq_mi > q67` (densest urban ZCTAs, e.g. 94606, 94704).
+- **Why tertiles, not fixed thresholds**: with only 53 ZCTAs, fixed cutoffs like "1,000 / 5,000 ppl per mi²" produce uneven groups; tertiles guarantee ~17–18 ZCTAs per bucket, which keeps ANOVA sample sizes balanced and the rule data-driven.
+- The actual numeric `q33` and `q67` cutoffs are **printed at run time and copied into every row of the output CSV** (`low_cutoff_per_sq_mi`, `high_cutoff_per_sq_mi`) so the rule is recoverable from the file alone. Current values: **`q33 ≈ 3,720.12`** and **`q67 ≈ 8,714.46`** people per sq mi (low: 18 ZCTAs, medium: 17, high: 18).
+- Output: `Datasets/03_CENSUS/population_density/csv/03_alameda_zcta_density_groups.csv` — `zcta`, `population_per_sq_mi`, `density_group`, `low_cutoff_per_sq_mi`, `high_cutoff_per_sq_mi`.
+
 ### Population density script order
 1. Complete **Crosswalk run order** so `01_alameda_zcta_land_area.csv` exists.
 2. `01_alameda_zcta_population.py`
 3. `02_alameda_zcta_population_density.py`
-
-**How to run** (from repo root; requires `raw_ZCTA_population.csv` per script defaults):
-
-```bash
-python "Datasets/03_CENSUS/population_density/scripts/01_alameda_zcta_population.py"
-python "Datasets/03_CENSUS/population_density/scripts/02_alameda_zcta_population_density.py"
-```
+4. `03_alameda_zcta_density_groups.py`
 
 ---
 
@@ -189,14 +186,7 @@ Median household income is pulled from the Census **ACS 5-year** API (table `B19
 - Downloads income for **all ZCTAs** for a given ACS end year (default **2020**, i.e. 2016–2020 ACS5).
 - Filters to Alameda County ZCTAs using `Datasets/00_crosswalk/csv/01_alameda_zcta_land_area.csv` (column `ZCTA`).
 - Output: `Datasets/03_CENSUS/income/csv/01_alameda_zcta_income.csv`
-
-**How to run** (from the repository root):
-
-```bash
-python "Datasets/03_CENSUS/income/scripts/00_alameda_zcta_income_acs5.py"
-```
-
-Optional: `--acs-end-year 2020`, `--census-api-key YOUR_KEY`, `--output-csv ...`. Missing Census estimates are written as blank cells (not negative sentinels).
+- Optional flags: `--acs-end-year 2020`, `--census-api-key YOUR_KEY`, `--output-csv ...`. Missing Census estimates are written as blank cells (not negative sentinels).
 
 ---
 
@@ -293,4 +283,40 @@ python "Datasets/01_MLAB/scripts/02_descriptive_stats_download_mbps_by_zcta.py" 
 7. `03_join_mlab_with_income.py` → merged CSV.
 8. `04_spearman_income_vs_speed.py` and/or `07_spearman_income_metric_suite.py`.
 9. `00_audit_zcta_joins.py` anytime to verify ZCTA alignment.
+
+---
+
+## Analysis (urbanicity, advertised vs measured)
+
+Inputs each script consumes:
+- `Datasets/03_CENSUS/population_density/csv/03_alameda_zcta_density_groups.csv` (low/medium/high tertile labels — the rule is documented under **Census population density**).
+- `Datasets/02_FCC/csv/05_alameda_zcta_advertised_download.csv` (per-ZCTA advertised speed via Option A — see the FCC pipeline section).
+- `Datasets/01_MLAB/csvs/01_alameda_zcta_mlab_2020_12_download_metrics.csv` (per-ZCTA measured download).
+
+### `analysis/scripts/01_anova_density_vs_measured_download.py`
+- Inner-joins density groups to M-Lab metrics on `zcta`, drops ZCTAs with missing `median_download_mbps`, and prints how many were dropped.
+- Uses the same `low` / `medium` / `high` labels written by `03_alameda_zcta_density_groups.py` (tertile rule documented in the population-density section).
+- Runs `scipy.stats.f_oneway` on `median_download_mbps` across the three groups (with a manual SSB/SSW fallback if SciPy is unavailable, mirroring the M-Lab Spearman script).
+- The boxplot overlays each ZCTA as a single dot on its group. Each dot gets a small random horizontal offset so dots that share the same value do not stack on top of each other. This means the reader can see every ZCTA in the group, not just the median and quartiles drawn by the box.
+- Outputs:
+  - `analysis/csv/01_anova_density_vs_measured_download.csv` — per-group rows (`density_group`, `n`, `mean_mbps`, `median_mbps`, `std_mbps`) plus a final row with `f_statistic`, `p_value`, total `n`.
+  - `analysis/plots/01_density_group_vs_measured_download_box.png` — boxplot with one dot per ZCTA overlaid (small random horizontal offset so dots do not stack) and F/p in the title.
+
+### `analysis/scripts/02_performance_ratio.py`
+- Inner-joins FCC advertised (`05_alameda_zcta_advertised_download.csv`) to M-Lab download metrics on `zcta`.
+- Computes `performance_ratio = median_download_mbps / advertised_download_mbps` with `np.where(advertised > 0, ..., np.nan)` so a 0/missing FCC value never crashes the script. Skipped rows get `ratio_skip_reason = "advertised_zero_or_missing"` for easy auditing.
+- How to read the ratio: **~1.0** = ISPs deliver what they advertised to the typical resident; **< 0.5** = "Major Performance Gap" (measured under half of advertised); **> 1.0** = measured beats advertised (rare, usually over-provisioning).
+- Outputs:
+  - `analysis/csv/02_alameda_zcta_performance_ratio.csv` — `zcta`, `median_download_mbps`, `advertised_download_mbps`, `performance_ratio`, `ratio_skip_reason`, `download_test_count`, `block_count`.
+  - `analysis/csv/02_alameda_performance_ratio_summary.csv` — `n`, `mean_ratio`, `median_ratio`, `std_ratio`, `min_ratio`, `max_ratio`, `p25_ratio`, `p75_ratio`, `n_below_0_5`, `n_above_1_0`.
+  - `analysis/plots/02_performance_ratio_hist.png` — histogram with vertical lines at **0.5** and **1.0**.
+  - `analysis/plots/02_advertised_vs_measured_scatter.png` — scatter with the **`y = x` reference line** (delivered as advertised) and a **light-red shaded region below `y = 0.5x`** flagging the Major Performance Gap zone.
+
+### Analysis run order
+1. Run **Census population density** through step 4 (`03_alameda_zcta_density_groups.py`).
+2. Run the **FCC pipeline** through step 6 (`05_alameda_zcta_advertised_download.py`).
+3. Run **M-Lab** through `01_aggregate_mlab_zcta_download.py` so `01_alameda_zcta_mlab_2020_12_download_metrics.csv` exists.
+4. `01_anova_density_vs_measured_download.py`
+5. `02_performance_ratio.py`
+
 

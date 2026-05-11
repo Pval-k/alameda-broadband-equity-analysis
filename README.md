@@ -314,11 +314,26 @@ Inputs each script consumes:
   - `analysis/plots/02_performance_ratio_hist.png` — histogram with vertical lines at **0.5** and **1.0**.
   - `analysis/plots/02_advertised_vs_measured_scatter.png` — scatter with the **`y = x` reference line** (delivered as advertised) and a **light-red shaded region below `y = 0.5x`** flagging the Major Performance Gap zone.
 
+### `analysis/scripts/03_spearman_income_vs_performance_ratio.py`
+- Tests the "broadband truth gap" hypothesis: do lower-income ZCTAs receive a smaller share of the speed ISPs advertised?
+- Inner-joins per-ZCTA performance ratios (`analysis/csv/02_alameda_zcta_performance_ratio.csv`) to Census ACS5 income (`Datasets/03_CENSUS/income/csv/01_alameda_zcta_income.csv`) on `zcta` and drops rows missing either `median_household_income` or the ratio.
+- Computes Spearman ρ + p-value between `median_household_income` and **both** ratio variants when available:
+  - `performance_ratio` (median measured / advertised) — primary.
+  - `performance_ratio_p75` (P75 measured / advertised) — matches the abstract's "P75 measured / median advertised" framing.
+- Uses `scipy.stats.spearmanr` with a manual rank-correlation fallback if SciPy is missing (same pattern as the M-Lab Spearman script).
+- **Interpretation**: ρ > 0 with a small p-value supports the hypothesis (higher-income ZCTAs receive a higher share of advertised speed; lower-income ZCTAs see a larger truth gap). ρ near 0 means no monotonic relationship.
+- Outputs:
+  - `analysis/csv/03_spearman_income_vs_performance_ratio_results.csv` — one row per ratio variant with `ratio_col`, `ratio_label`, `n`, `spearman_rho`, `p_value`.
+  - `analysis/plots/03_income_vs_performance_ratio_scatter.png` — income vs median-based ratio, with horizontal reference lines at **1.0** (delivered as advertised) and **0.5** (major performance gap) and a linear fit for visual guidance.
+  - `analysis/plots/03_income_vs_performance_ratio_p75_scatter.png` — same plot for the P75-based ratio (only written when `performance_ratio_p75` exists in the input).
+
 ### Analysis run order
 1. Run **Census population density** through step 4 (`03_alameda_zcta_density_groups.py`).
 2. Run the **FCC pipeline** through step 6 (`05_alameda_zcta_advertised_download.py`).
 3. Run **M-Lab** through `01_aggregate_mlab_zcta_download.py` so `01_alameda_zcta_mlab_2020_12_download_metrics.csv` exists.
-4. `01_anova_density_vs_measured_download.py`
-5. `02_performance_ratio.py`
+4. Run **Census income** (`00_alameda_zcta_income_acs5.py`) so `01_alameda_zcta_income.csv` exists.
+5. `01_anova_density_vs_measured_download.py`
+6. `02_performance_ratio.py`
+7. `03_spearman_income_vs_performance_ratio.py`
 
 

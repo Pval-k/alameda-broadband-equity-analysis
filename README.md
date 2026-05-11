@@ -222,7 +222,7 @@ python "Datasets/01_MLAB/scripts/05_filter_raw_december_to_alameda_zctas.py"
 - **Output**: same path as `--input-csv` (default `mlab_raw_alameda_2020_12.csv`), now Alameda-only rows only.
 
 ### `Datasets/01_MLAB/scripts/01_aggregate_mlab_zcta_download.py`
-- Aggregates **download** tests to one row per `zcta`: median/mean/std download Mbps, test count, median/mean download latency; labels `mlab_year`, `mlab_month`. Filters to Alameda ZCTAs via `--alameda-zcta-csv` (default crosswalk).
+- Aggregates **download** tests to one row per `zcta`: `median_download_mbps`, `mean_download_mbps`, `p75_download_mbps` (75th percentile of within-ZCTA tests), `std_download_mbps`, `var_download_mbps`, `download_test_count`, plus median/mean download latency and `mlab_year`/`mlab_month` labels. Filters to Alameda ZCTAs via `--alameda-zcta-csv` (default crosswalk).
 - **How to run**:
 
 ```bash
@@ -304,11 +304,13 @@ Inputs each script consumes:
 
 ### `analysis/scripts/02_performance_ratio.py`
 - Inner-joins FCC advertised (`05_alameda_zcta_advertised_download.csv`) to M-Lab download metrics on `zcta`.
-- Computes `performance_ratio = median_download_mbps / advertised_download_mbps` with `np.where(advertised > 0, ..., np.nan)` so a 0/missing FCC value never crashes the script. Skipped rows get `ratio_skip_reason = "advertised_zero_or_missing"` for easy auditing.
-- How to read the ratio: **~1.0** = ISPs deliver what they advertised to the typical resident; **< 0.5** = "Major Performance Gap" (measured under half of advertised); **> 1.0** = measured beats advertised (rare, usually over-provisioning).
+- Computes two ratios per ZCTA, both with `np.where(advertised > 0, ..., np.nan)` so a 0/missing FCC value never crashes the script. Skipped rows get `ratio_skip_reason = "advertised_zero_or_missing"` for easy auditing.
+  - `performance_ratio = median_download_mbps / advertised_download_mbps` (primary; "typical resident").
+  - `performance_ratio_p75 = p75_download_mbps / advertised_download_mbps` (faster end of the within-ZCTA distribution). Only written if the M-Lab input has a `p75_download_mbps` column.
+- How to read the ratio: **~1.0** = ISPs deliver what they advertised; **< 0.5** = "Major Performance Gap" (measured under half of advertised); **> 1.0** = measured beats advertised (rare, usually over-provisioning).
 - Outputs:
-  - `analysis/csv/02_alameda_zcta_performance_ratio.csv` — `zcta`, `median_download_mbps`, `advertised_download_mbps`, `performance_ratio`, `ratio_skip_reason`, `download_test_count`, `block_count`.
-  - `analysis/csv/02_alameda_performance_ratio_summary.csv` — `n`, `mean_ratio`, `median_ratio`, `std_ratio`, `min_ratio`, `max_ratio`, `p25_ratio`, `p75_ratio`, `n_below_0_5`, `n_above_1_0`.
+  - `analysis/csv/02_alameda_zcta_performance_ratio.csv` — `zcta`, `median_download_mbps`, `p75_download_mbps`, `advertised_download_mbps`, `performance_ratio`, `performance_ratio_p75`, `ratio_skip_reason`, `download_test_count`, `block_count`.
+  - `analysis/csv/02_alameda_performance_ratio_summary.csv` — median-ratio stats (`n`, `mean_ratio`, `median_ratio`, `std_ratio`, `min_ratio`, `max_ratio`, `p25_ratio`, `p75_ratio`, `n_below_0_5`, `n_above_1_0`) plus matching `*_p75` columns when the P75 ratio is computed.
   - `analysis/plots/02_performance_ratio_hist.png` — histogram with vertical lines at **0.5** and **1.0**.
   - `analysis/plots/02_advertised_vs_measured_scatter.png` — scatter with the **`y = x` reference line** (delivered as advertised) and a **light-red shaded region below `y = 0.5x`** flagging the Major Performance Gap zone.
 

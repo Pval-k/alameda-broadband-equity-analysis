@@ -10,7 +10,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=(
             "Aggregate raw M-Lab tests to ZCTA-level measured download metrics "
-            "(median/mean/std/count). Expects columns: zcta, test_date, test_type, speed_mbps, latency_ms."
+            "(median/mean/P75/std/var/count). Expects columns: zcta, test_date, "
+            "test_type, speed_mbps, latency_ms."
         )
     )
     p.add_argument(
@@ -85,7 +86,9 @@ def main() -> None:
     out = grouped.agg(
         median_download_mbps=("speed_mbps", "median"),
         mean_download_mbps=("speed_mbps", "mean"),
+        p75_download_mbps=("speed_mbps", lambda s: s.quantile(0.75)),
         std_download_mbps=("speed_mbps", "std"),
+        var_download_mbps=("speed_mbps", "var"),
         download_test_count=("speed_mbps", "count"),
     )
 

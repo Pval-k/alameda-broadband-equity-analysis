@@ -1,18 +1,25 @@
 """Per-ZCTA performance ratio: M-Lab measured download / FCC advertised download.
 
 Inner-joins FCC advertised (Option A: max-tech per block, then median across
-blocks) to M-Lab ZCTA-level metrics (`median_download_mbps`).
+blocks) to M-Lab ZCTA-level metrics. Computes two ratios when available:
 
-Ratio is computed with explicit zero-safety:
+* ``performance_ratio``     = ``median_download_mbps`` / ``advertised_download_mbps``
+  (primary; "what the typical resident experiences")
+* ``performance_ratio_p75`` = ``p75_download_mbps``    / ``advertised_download_mbps``
+  (only computed if ``p75_download_mbps`` is present in the M-Lab input;
+  "what residents on the faster end of the ZCTA experience")
+
+Both ratios use explicit zero-safety:
 
     np.where(advertised > 0, measured / advertised, np.nan)
 
 so a 0 / missing FCC value never crashes the script. Skipped rows are tagged
-with `ratio_skip_reason = "advertised_zero_or_missing"` for easy auditing.
+with ``ratio_skip_reason = "advertised_zero_or_missing"`` for easy auditing.
 
-Outputs a per-ZCTA CSV, a summary CSV, a histogram (with reference lines at
-0.5 and 1.0), and a scatter (advertised vs measured) with a `y = x` line and a
-shaded `y < 0.5x` "Major Performance Gap" region.
+Outputs a per-ZCTA CSV, a summary CSV (with P75-based stats when available),
+a histogram of the median-based ratio (with reference lines at 0.5 and 1.0),
+and a scatter (advertised vs median-measured) with a ``y = x`` line and a
+shaded ``y < 0.5x`` "Major Performance Gap" region.
 """
 
 from __future__ import annotations
@@ -87,6 +94,8 @@ def main() -> None:
     mlab["zcta"] = mlab["zcta"].astype(str).str.strip().str.zfill(5)
 
     keep_mlab_cols = ["zcta", "median_download_mbps"]
+    if "p75_download_mbps" in mlab.columns:
+        keep_mlab_cols.append("p75_download_mbps")
     if "download_test_count" in mlab.columns:
         keep_mlab_cols.append("download_test_count")
     keep_adv_cols = ["zcta", "advertised_download_mbps"]
@@ -100,20 +109,35 @@ def main() -> None:
         f"Joined {len(merged)} ZCTAs (FCC advertised: {len(adv)}, M-Lab: {len(mlab)})."
     )
 
-    measured = pd.to_numeric(merged["median_download_mbps"], errors="coerce")
+    measured_median = pd.to_numeric(merged["median_download_mbps"], errors="coerce")
     advertised = pd.to_numeric(merged["advertised_download_mbps"], errors="coerce")
 
-    valid = (advertised > 0) & advertised.notna() & measured.notna()
-    merged["performance_ratio"] = np.where(valid, measured / advertised, np.nan)
+    valid = (advertised > 0) & advertised.notna() & measured_median.notna()
+    merged["performance_ratio"] = np.where(
+        valid, measured_median / advertised, np.nan
+    )
     merged["ratio_skip_reason"] = np.where(valid, "", "advertised_zero_or_missing")
+
+    if "p75_download_mbps" in merged.columns:
+        measured_p75 = pd.to_numeric(merged["p75_download_mbps"], errors="coerce")
+        valid_p75 = (advertised > 0) & advertised.notna() & measured_p75.notna()
+        merged["performance_ratio_p75"] = np.where(
+            valid_p75, measured_p75 / advertised, np.nan
+        )
 
     cols = [
         "zcta",
         "median_download_mbps",
+    ]
+    if "p75_download_mbps" in merged.columns:
+        cols.append("p75_download_mbps")
+    cols += [
         "advertised_download_mbps",
         "performance_ratio",
-        "ratio_skip_reason",
     ]
+    if "performance_ratio_p75" in merged.columns:
+        cols.append("performance_ratio_p75")
+    cols.append("ratio_skip_reason")
     if "download_test_count" in merged.columns:
         cols.append("download_test_count")
     if "block_count" in merged.columns:
@@ -127,24 +151,44 @@ def main() -> None:
         print("Warning: no valid ratios to summarize/plot; skipping plots.")
         return
 
-    summary = pd.DataFrame(
-        [
-            {
-                "n": int(len(ratios)),
-                "mean_ratio": float(ratios.mean()),
-                "median_ratio": float(ratios.median()),
-                "std_ratio": (
-                    float(ratios.std(ddof=1)) if len(ratios) > 1 else float("nan")
-                ),
-                "min_ratio": float(ratios.min()),
-                "max_ratio": float(ratios.max()),
-                "p25_ratio": float(ratios.quantile(0.25)),
-                "p75_ratio": float(ratios.quantile(0.75)),
-                "n_below_0_5": int((ratios < 0.5).sum()),
-                "n_above_1_0": int((ratios > 1.0).sum()),
-            }
-        ]
-    )
+    summary_row = {
+        "n": int(len(ratios)),
+        "mean_ratio": float(ratios.mean()),
+        "median_ratio": float(ratios.median()),
+        "std_ratio": (
+            float(ratios.std(ddof=1)) if len(ratios) > 1 else float("nan")
+        ),
+        "min_ratio": float(ratios.min()),
+        "max_ratio": float(ratios.max()),
+        "p25_ratio": float(ratios.quantile(0.25)),
+        "p75_ratio": float(ratios.quantile(0.75)),
+        "n_below_0_5": int((ratios < 0.5).sum()),
+        "n_above_1_0": int((ratios > 1.0).sum()),
+    }
+
+    if "performance_ratio_p75" in out_df.columns:
+        ratios_p75 = pd.to_numeric(
+            out_df["performance_ratio_p75"], errors="coerce"
+        ).dropna()
+        if len(ratios_p75):
+            summary_row.update(
+                {
+                    "n_p75": int(len(ratios_p75)),
+                    "mean_ratio_p75": float(ratios_p75.mean()),
+                    "median_ratio_p75": float(ratios_p75.median()),
+                    "std_ratio_p75": (
+                        float(ratios_p75.std(ddof=1))
+                        if len(ratios_p75) > 1
+                        else float("nan")
+                    ),
+                    "min_ratio_p75": float(ratios_p75.min()),
+                    "max_ratio_p75": float(ratios_p75.max()),
+                    "n_below_0_5_p75": int((ratios_p75 < 0.5).sum()),
+                    "n_above_1_0_p75": int((ratios_p75 > 1.0).sum()),
+                }
+            )
+
+    summary = pd.DataFrame([summary_row])
     summary.to_csv(out_summary, index=False)
     print(f"Wrote summary to {out_summary}")
 

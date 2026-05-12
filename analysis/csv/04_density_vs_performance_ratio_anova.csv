@@ -1,0 +1,9 @@
+row_type,ratio_col,ratio_label,density_group,n,mean_ratio,median_ratio,std_ratio,f_statistic,p_value
+group,performance_ratio,median measured / advertised,low,14,1.376325214285714,0.6593245000000001,2.901670664395551,,
+group,performance_ratio,median measured / advertised,medium,17,0.2829555294117647,0.079576,0.373078454882334,,
+group,performance_ratio,median measured / advertised,high,16,0.8182998125,0.2375105,1.8666622665517265,,
+anova,performance_ratio,median measured / advertised,all,47,,,,1.2340249819479305,0.3009962149516474
+group,performance_ratio_p75,P75 measured / advertised,low,14,3.747316928571429,1.6299860000000002,8.269791894257477,,
+group,performance_ratio_p75,P75 measured / advertised,medium,17,0.619171411764706,0.19888,0.7274643851038396,,
+group,performance_ratio_p75,P75 measured / advertised,high,16,2.6699431874999995,0.6101235,6.9478636166072825,,
+anova,performance_ratio_p75,P75 measured / advertised,all,47,,,,1.077494591343904,0.3492597230612045

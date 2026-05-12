@@ -327,6 +327,21 @@ Inputs each script consumes:
   - `analysis/plots/03_income_vs_performance_ratio_scatter.png` — income vs median-based ratio, with horizontal reference lines at **1.0** (delivered as advertised) and **0.5** (major performance gap) and a linear fit for visual guidance.
   - `analysis/plots/03_income_vs_performance_ratio_p75_scatter.png` — same plot for the P75-based ratio (only written when `performance_ratio_p75` exists in the input).
 
+### `analysis/scripts/04_density_vs_performance_ratio.py`
+- Tests the **density half** of the "broadband truth gap" hypothesis: do lower-density ZCTAs receive a smaller share of the speed ISPs advertised?
+- Inner-joins per-ZCTA density (`Datasets/03_CENSUS/population_density/csv/03_alameda_zcta_density_groups.csv` — provides `population_per_sq_mi` and the tertile `density_group` from `03_alameda_zcta_density_groups.py`) to the per-ZCTA performance ratios (`analysis/csv/02_alameda_zcta_performance_ratio.csv`).
+- For each available ratio column (`performance_ratio` and, when present, `performance_ratio_p75`) it runs:
+  - **Spearman rank correlation** between `population_per_sq_mi` and the ratio.
+  - **One-way ANOVA** comparing the ratio across the three tertile groups (`low` / `medium` / `high`), mirroring `01_anova_density_vs_measured_download.py` so the level-based and gap-based ANOVAs share a cut.
+- Uses `scipy.stats.spearmanr` / `scipy.stats.f_oneway` with manual rank-correlation and SSB/SSW fallbacks when SciPy is missing (same pattern as the other analysis scripts).
+- **Interpretation**: Spearman ρ > 0 with a small p-value supports the hypothesis (denser ZCTAs receive a higher share of advertised speed; lower-density ZCTAs face a larger gap). ρ near 0 means no monotonic density effect on the gap. The ANOVA is a complementary group-wise check using the same tertile cut as `03_alameda_zcta_density_groups.py`.
+- Outputs:
+  - `analysis/csv/04_density_vs_performance_ratio_spearman.csv` — one row per ratio variant with `ratio_col`, `ratio_label`, `n`, `spearman_rho`, `p_value`.
+  - `analysis/csv/04_density_vs_performance_ratio_anova.csv` — per-group rows (`density_group`, `n`, `mean_ratio`, `median_ratio`, `std_ratio`) plus one ANOVA row per ratio variant (`f_statistic`, `p_value`).
+  - `analysis/plots/04_density_vs_performance_ratio_scatter.png` — log-x scatter of density vs the median-based ratio with horizontal reference lines at **0.5** and **1.0**.
+  - `analysis/plots/04_density_vs_performance_ratio_p75_scatter.png` — same scatter for the P75-based ratio (only written when `performance_ratio_p75` exists).
+  - `analysis/plots/04_density_group_vs_performance_ratio_box.png` — boxplot of the median-based ratio by density tertile, with one dot per ZCTA overlaid (small random horizontal offset so dots that share a value do not stack) and the ANOVA F/p in the title.
+
 ### Analysis run order
 1. Run **Census population density** through step 4 (`03_alameda_zcta_density_groups.py`).
 2. Run the **FCC pipeline** through step 6 (`05_alameda_zcta_advertised_download.py`).
@@ -335,5 +350,6 @@ Inputs each script consumes:
 5. `01_anova_density_vs_measured_download.py`
 6. `02_performance_ratio.py`
 7. `03_spearman_income_vs_performance_ratio.py`
+8. `04_density_vs_performance_ratio.py`
 
 
